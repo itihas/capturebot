@@ -18,12 +18,14 @@ bot.
 import logging
 import os
 import urllib.parse
+import urllib.request
+import pkgutil
+# import lxml.html as lh
 
-from telegram import Update
+from telegram import Update, MessageEntity
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, InlineQueryHandler, CallbackContext
 
 
-URL = 'url'
 TITLE, BODY = range(2)
 
 
@@ -35,6 +37,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def cmd(params):
+    c = "emacsclient -c -F \"((name . \\\"emacs-capture\\\") (height . 10) (width . 10))\" \"org-protocol://capture?{}\"".format(urllib.parse.urlencode(params, quote_via=urllib.parse.quote))
+    logger.info(c)
+    os.system(c)
+    
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.
 def start(update: Update, _: CallbackContext) -> None:
@@ -61,18 +68,19 @@ def title(update: Update, context: CallbackContext) -> int:
     return BODY
 
 def bookmark(update: Update, context: CallbackContext) -> int:
-    params = { 'template': 'L', 'url' : update.message.parse_entities()[URL], 'body' : update.message.text }
-    cmd = "xdg-open \"org-protocol://capture?{}\"".format(urllib.parse.urlencode(params, quote_via=urllib.parse.quote))
-    print(cmd)
-    os.system(cmd)
+    data = update.message.parse_entities(types=[MessageEntity.URL]).values()
+    for url in data:
+        # page = urllib.request.urlopen(url)
+        # TODO arhcivebox or goose
+        # title = parse(page).find(".//title").text
+        params = { 'template': 'L', 'url' : url  }
+        cmd(params)
     return ConversationHandler.END
 
     
 def body(update: Update, context: CallbackContext) -> int:
     params = { 'template': 'C', 'title' : context.user_data['title'], 'body' : update.message.text }
-    cmd = "xdg-open \"org-protocol://capture?{}\"".format(urllib.parse.urlencode(params, quote_via=urllib.parse.quote))
-    print(cmd)
-    os.system(cmd)
+    cmd(params)
     context.user_data.clear()
     return ConversationHandler.END
 
@@ -81,19 +89,19 @@ def cancel(u:Update, _:CallbackContext) -> int:
 
 
 def oneline_capture(update: Update, context: CallbackContext) -> None:
-    title, body = update.message.text.split('\n', 1)
-    params = { 'template': 'C', 'title' : title, 'body': body }
-    cmd = "xdg-open \"org-protocol://capture?{}\"".format(urllib.parse.urlencode(params, quote_via=urllib.parse.quote))
-    print(cmd)
-    os.system(cmd)
+    data = update.message.text.split('\n', 1)
+    params = { 'template': 'C', 'title' : data[0], 'body': ''.join(data[1:]) }
+    cmd(params)
     context.user_data.clear()
 
 
 def main() -> None:
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
-    with open("./token") as f:
-        updater = Updater(f.read())
+    token = pkgutil.get_data(__name__,"data/token").decode()
+    updater = Updater(token, use_context=True)
+    # with open("./data/token") as f:
+    #     updater = Updater(f.read())
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
@@ -111,7 +119,7 @@ def main() -> None:
 
     dispatcher.add_handler(conv_handler)
 
-    dispatcher.add_handler(MessageHandler(Filters.entity(URL), bookmark))
+    dispatcher.add_handler(MessageHandler(Filters.entity(MessageEntity.URL), bookmark))
 
     # on different commands - answer in Telegram
     dispatcher.add_handler(CommandHandler("start", start))
