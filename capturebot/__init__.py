@@ -87,6 +87,11 @@ def body(update: Update, context: CallbackContext) -> int:
 def cancel(u:Update, _:CallbackContext) -> int:
     return ConversationHandler.END
 
+def todo_capture(update: Update, context: CallbackContext) -> None:
+    data = update.message.text.split('\n', 1)
+    params = { 'template': 'T', 'title' : data[0], 'body': ''.join(data[1:]) }
+    cmd(params)
+    context.user_data.clear()
 
 def oneline_capture(update: Update, context: CallbackContext) -> None:
     data = update.message.text.split('\n', 1)
@@ -120,6 +125,7 @@ def main() -> None:
     dispatcher.add_handler(conv_handler)
 
     dispatcher.add_handler(MessageHandler(Filters.entity(MessageEntity.URL), bookmark))
+    dispatcher.add_handler(MessageHandler(Filters.regex('^todo.*'), todo_capture))
 
     # on different commands - answer in Telegram
     dispatcher.add_handler(CommandHandler("start", start))
