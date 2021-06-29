@@ -16,14 +16,20 @@
         nixosModules = {
           service = { config, pkgs, lib, ...}:
             {
-              options.capturebot.tokenFile = lib.mkOption {
-                type = lib.types.str;
-                default = "";
-              };
+              options.capturebot = {
+                tokenFile = lib.mkOption {
+                  type = lib.types.str;
+                  default = "";
+                };
+                users = lib.mkOption {
+                  type = lib.types.str;
+                  default = "";
+                };
+              }
 
               config.systemd.user.services.capturebot = {
                 path = [ defaultPackage.${system} pkgs.xdg_utils pkgs.emacs ];
-                script = "capturebot --tokenfile ${config.capturebot.tokenFile}";
+                script = "capturebot --tokenfile ${config.capturebot.tokenFile} --users ${config.capturebot.users}";
                 serviceConfig = {
                   Type = "exec";
                 };

@@ -92,10 +92,13 @@ def main() -> None:
 
     helptext = '''capturebot 
     -t --token <token>
+    -f --tokenfile <tokenfile>
+    -u --users <authorized users>
     '''
     token = ''
+    users = ''
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "ht:f:",["help", "token=", "tokenfile="])
+        opts, args = getopt.getopt(sys.argv[1:], "ht:f:u:",["help", "token=", "tokenfile=", "users="])
     except getopt.GetoptError:
         print(helptext)
     for opt, arg in opts:
@@ -106,6 +109,8 @@ def main() -> None:
         elif opt in ("-f", "--tokenfile"):
             with open(arg) as f:
                 token = f.read()
+        elif opt in ("-u", "--users"):
+            users = arg.split(',')
 
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
@@ -130,15 +135,15 @@ def main() -> None:
 
     dispatcher.add_handler(conv_handler)
 
-    dispatcher.add_handler(MessageHandler(Filters.usernames(("c_itihas")) & Filters.entity(MessageEntity.URL), bookmark))
-    dispatcher.add_handler(MessageHandler(Filters.usernames(("c_itihas")) & Filters.regex('todo.*'), todo_capture))
+    dispatcher.add_handler(MessageHandler(Filters.usernames(users) & Filters.entity(MessageEntity.URL), bookmark))
+    dispatcher.add_handler(MessageHandler(Filters.usernames(users) & Filters.regex('todo.*'), todo_capture))
 
     # # on different commands - answer in Telegram
     # dispatcher.add_handler(CommandHandler("start", start))
     # dispatcher.add_handler(CommandHandler("help", help_command))
 
     # on noncommand i.e message - echo the message on Telegram
-    dispatcher.add_handler(MessageHandler(Filters.usernames(("c_itihas")) & Filters.text & ~Filters.command, oneline_capture))
+    dispatcher.add_handler(MessageHandler(Filters.usernames(users) & Filters.text & ~Filters.command, oneline_capture))
 
     # Start the Bot
     updater.start_polling()
