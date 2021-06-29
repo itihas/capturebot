@@ -7,18 +7,23 @@
       rec {
         defaultPackage.${system} = mach-nix.lib.${system}.buildPythonPackage {
           pname = "capturebot";
-          version = "0.1";
+          version = "0.1.1";
           src = ./. ;
           requirements = ''python-telegram-bot'';
 
         };
 
         nixosModules = {
-          service = { pkgs,...}:
+          service = { config, pkgs, lib, ...}:
             {
-              systemd.user.services.capturebot = {
+              options.capturebot.tokenFile = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+              };
+
+              config.systemd.user.services.capturebot = {
                 path = [ defaultPackage.${system} pkgs.xdg_utils pkgs.emacs ];
-                script = "capturebot";
+                script = "capturebot --tokenfile ${config.capturebot.tokenFile}";
                 serviceConfig = {
                   Type = "exec";
                 };

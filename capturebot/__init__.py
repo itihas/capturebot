@@ -1,25 +1,13 @@
 #!/usr/bin/env python
 # pylint: disable=C0116
-# This program is dedicated to the public domain under the CC0 license.
-
-"""
-Simple Bot to reply to Telegram messages.
-
-First, a few handler functions are defined. Then, those functions are passed to
-the Dispatcher and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-
-Usage:
-Basic Echobot example, repeats messages.
-Press Ctrl-C on the command line or send a signal to the process to stop the
-bot.
-"""
+# based on echobot example in python-telegram-bot
 
 import logging
 import os
 import urllib.parse
 import urllib.request
 import pkgutil
+import sys, getopt
 # import lxml.html as lh
 
 from telegram import Update, MessageEntity
@@ -70,9 +58,9 @@ def title(update: Update, context: CallbackContext) -> int:
 def bookmark(update: Update, context: CallbackContext) -> int:
     data = update.message.parse_entities(types=[MessageEntity.URL]).values()
     for url in data:
-        # page = urllib.request.urlopen(url)
-        # TODO arhcivebox or goose
-        # title = parse(page).find(".//title").text
+        page = urllib.request.urlopen(url)
+        # TODO archivebox or goose
+        title = parse(page).find(".//title").text
         params = { 'template': 'L', 'url' : url  }
         cmd(params)
     return ConversationHandler.END
@@ -101,9 +89,27 @@ def oneline_capture(update: Update, context: CallbackContext) -> None:
 
 
 def main() -> None:
+
+    helptext = '''capturebot 
+    -t --token <token>
+    '''
+    token = ''
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "ht:f:",["help", "token=", "tokenfile="])
+    except getopt.GetoptError:
+        print(helptext)
+    for opt, arg in opts:
+        if opt in ("-h", "--help"):
+            print(helptext)
+        elif opt in ("-t", "--token"):
+            token = arg
+        elif opt in ("-f", "--tokenfile"):
+            with open(arg) as f:
+                token = f.read()
+
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
-    token = pkgutil.get_data(__name__,"data/token").decode()
+    # token = pkgutil.get_data(__name__,"data/token").decode()
     updater = Updater(token, use_context=True)
     # with open("./data/token") as f:
     #     updater = Updater(f.read())
@@ -112,27 +118,27 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     # conversation
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('big',capture)],
-        states={
-            TITLE:[MessageHandler(Filters.text & ~Filters.command, title)],
-            BODY:[MessageHandler(Filters.text & ~Filters.command, body)],
-            # TODO: tags, dates, todo status
-        },
-        fallbacks=[CommandHandler('cancel',cancel)],
-    )
+    # conv_handler = ConversationHandler(
+    #     entry_points=[CommandHandler('big',capture)],
+    #     states={
+    #         TITLE:[MessageHandler(Filters.text & ~Filters.command, title)],
+    #         BODY:[MessageHandler(Filters.text & ~Filters.command, body)],
+    #         # TODO: tags, dates, todo status
+    #     },
+    #     fallbacks=[CommandHandler('cancel',cancel)],
+    # )
 
     dispatcher.add_handler(conv_handler)
 
-    dispatcher.add_handler(MessageHandler(Filters.entity(MessageEntity.URL), bookmark))
-    dispatcher.add_handler(MessageHandler(Filters.regex('^todo.*'), todo_capture))
+    dispatcher.add_handler(MessageHandler(Filters.usernames(("c_itihas")) & Filters.entity(MessageEntity.URL), bookmark))
+    dispatcher.add_handler(MessageHandler(Filters.usernames(("c_itihas")) & Filters.regex('todo.*'), todo_capture))
 
-    # on different commands - answer in Telegram
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("help", help_command))
+    # # on different commands - answer in Telegram
+    # dispatcher.add_handler(CommandHandler("start", start))
+    # dispatcher.add_handler(CommandHandler("help", help_command))
 
     # on noncommand i.e message - echo the message on Telegram
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, oneline_capture))
+    dispatcher.add_handler(MessageHandler(Filters.usernames(("c_itihas")) & Filters.text & ~Filters.command, oneline_capture))
 
     # Start the Bot
     updater.start_polling()
