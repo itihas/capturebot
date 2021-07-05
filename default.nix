@@ -2,7 +2,7 @@
 
 with pkgs;
 
-python38.pkgs.buildPythonApplication rec {
+python38.buildPythonPackage rec {
   pname = "capturebot";
   version = "0.1";
   src = ./. ;

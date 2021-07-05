@@ -61,7 +61,7 @@ def bookmark(update: Update, context: CallbackContext) -> int:
         page = urllib.request.urlopen(url)
         # TODO archivebox or goose
         title = parse(page).find(".//title").text
-        params = { 'template': 'L', 'url' : url  }
+        params = { 'template': 'L', 'url' : url, 'title': title, 'body': update.message.text }
         cmd(params)
     return ConversationHandler.END
 
