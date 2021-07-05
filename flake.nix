@@ -25,7 +25,7 @@
                   type = lib.types.str;
                   default = "";
                 };
-              }
+              };
 
               config.systemd.user.services.capturebot = {
                 path = [ defaultPackage.${system} pkgs.xdg_utils pkgs.emacs ];
