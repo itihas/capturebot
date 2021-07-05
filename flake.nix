@@ -7,9 +7,8 @@
       rec {
         defaultPackage.${system} = mach-nix.lib.${system}.buildPythonPackage {
           pname = "capturebot";
-          version = "0.1.1";
+          version = "0.1.1rc1";
           src = ./. ;
-          requirements = ''python-telegram-bot'';
 
         };
 

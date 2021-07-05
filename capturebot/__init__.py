@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 import pkgutil
 import sys, getopt
-# import lxml.html as lh
+import lxml.html as lh
 
 from telegram import Update, MessageEntity
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, InlineQueryHandler, CallbackContext
@@ -19,7 +19,7 @@ TITLE, BODY = range(2)
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ def bookmark(update: Update, context: CallbackContext) -> int:
     for url in data:
         page = urllib.request.urlopen(url)
         # TODO archivebox or goose
-        title = parse(page).find(".//title").text
+        title = lh.parse(page).find(".//title").text
         params = { 'template': 'L', 'url' : url, 'title': title, 'body': update.message.text }
         cmd(params)
     return ConversationHandler.END
@@ -96,21 +96,23 @@ def main() -> None:
     -u --users <authorized users>
     '''
     token = ''
-    users = ''
+    user = ''
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "ht:f:u:",["help", "token=", "tokenfile=", "users="])
+        opts, args = getopt.getopt(sys.argv[1:], "ht:f:u:",["help", "token=", "tokenfile=", "user="])
+        for opt, arg in opts:
+            if opt in ("-h", "--help"):
+                print(helptext)
+            elif opt in ("-t", "--token"):
+                token = arg
+            elif opt in ("-f", "--tokenfile"):
+                with open(arg) as f:
+                    token = f.read()
+            elif opt in ("-u", "--user"):
+                user = arg
+
     except getopt.GetoptError:
         print(helptext)
-    for opt, arg in opts:
-        if opt in ("-h", "--help"):
-            print(helptext)
-        elif opt in ("-t", "--token"):
-            token = arg
-        elif opt in ("-f", "--tokenfile"):
-            with open(arg) as f:
-                token = f.read()
-        elif opt in ("-u", "--users"):
-            users = arg.split(',')
+        exit()
 
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
@@ -133,17 +135,19 @@ def main() -> None:
     #     fallbacks=[CommandHandler('cancel',cancel)],
     # )
 
-    dispatcher.add_handler(conv_handler)
-
-    dispatcher.add_handler(MessageHandler(Filters.usernames(users) & Filters.entity(MessageEntity.URL), bookmark))
-    dispatcher.add_handler(MessageHandler(Filters.usernames(users) & Filters.regex('todo.*'), todo_capture))
+    # dispatcher.add_handler(conv_handler)
+    print(user)
+    userFilter = Filters.user(username=user)
+    print(userFilter.user_ids, userFilter.usernames)
+    dispatcher.add_handler(MessageHandler(userFilter & Filters.entity(MessageEntity.URL), bookmark))
+    dispatcher.add_handler(MessageHandler(userFilter & Filters.regex('todo.*'), todo_capture))
 
     # # on different commands - answer in Telegram
     # dispatcher.add_handler(CommandHandler("start", start))
     # dispatcher.add_handler(CommandHandler("help", help_command))
 
     # on noncommand i.e message - echo the message on Telegram
-    dispatcher.add_handler(MessageHandler(Filters.usernames(users) & Filters.text & ~Filters.command, oneline_capture))
+    dispatcher.add_handler(MessageHandler(userFilter & Filters.text & ~Filters.command, oneline_capture))
 
     # Start the Bot
     updater.start_polling()
