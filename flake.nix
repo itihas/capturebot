@@ -20,7 +20,7 @@
                   type = lib.types.str;
                   default = "";
                 };
-                users = lib.mkOption {
+                user = lib.mkOption {
                   type = lib.types.str;
                   default = "";
                 };
@@ -28,7 +28,7 @@
 
               config.systemd.user.services.capturebot = {
                 path = [ defaultPackage.${system} pkgs.xdg_utils pkgs.emacs ];
-                script = "capturebot --tokenfile ${config.capturebot.tokenFile} --users ${config.capturebot.users}";
+                script = "capturebot --tokenfile ${config.capturebot.tokenFile} --user ${config.capturebot.user}";
                 serviceConfig = {
                   Type = "exec";
                 };
