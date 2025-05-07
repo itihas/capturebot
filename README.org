@@ -1,0 +1,14 @@
+#+title: Capturebot
+
+
+Capturebot is a telegram bot that saves your messages to org-roam notes. It used to be a python bot, but now it is in rust.
+
+I wrote it for my own use. It is my janky bookmarking tool that suits my specific notetaking situation. There are many janky link savers like it, but this one is mine.
+
+* Todo
+
+- translate links to my own site to org-id links
+- treat replies as annotations in some cases
+  - notably, when replies are to link-only messages
+- handle message edits
+- consider filtering or otherwise handling users
