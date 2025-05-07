@@ -1,121 +1,154 @@
+#![feature(iter_intersperse)]
+#[macro_use] extern crate slugify;
+use slugify::slugify;
+use chrono::{DateTime, Utc};
 use organic::parser::{parse, parse_file};
-use organic::types::NodeProperty;
-use std::fs;
+use organic::types::{Document, NodeProperty};
 use std::path::Path;
+use std::io::Error;
 use teloxide::prelude::*;
-use teloxide::types::MessageEntityKind;
+use teloxide::types::{Message, MessageEntityKind};
+use tokio::fs;
+use tokio::io::{AsyncReadExt};
 use url::Url;
 use uuidgen::gen_uuid;
-use Utc::now;
 
-static SAVEDIR: Path = Path::new("./out/");
+
+static SAVEDIR: &str = "./out/";
 
 static CAPTUREBOT_ID_PROPERTY: &str = "CAPTUREBOT_MESSAGE_ID";
 static CAPTUREBOT_PARENT_ID_PROPERTY: &str = "CAPTUREBOT_PARENT_MESSAGE_ID";
 
 struct CapturebotNote {
     id: String,
-    path: Path,
-    telegram_id: MessageId,
-    telegram_parent: Option<MessageId>,
-    document: Document<'_>,
+    path: String,
+    capturebot_id: String,
+    capturebot_parent: Option<String>,
 }
 
-fn load_notes() -> Vec<CapturebotNote> {
-    let mut result = Vec::new();
-    match fs::ls(SAVEDIR) {
-        Err(why) => println!("! {:?}", why.kind()),
-        Ok(paths) => {
-            for path in paths {
-                let mut f = File::open(path)?;
-                let mut s = &str::new();
-                f.read_to_string(&mut s);
-                let doc = parse_file(s, path)?;
-                let properties = doc.get_additional_properties();
-
-                if let Some(m_id) =
-                    properties.find(|p: &NodeProperty| p.property_name == CAPTUREBOT_ID_PROPERTY)
-                {
-                    result.push(CapturebotNote {
-                        id: properties.find(|p: &NodeProperty| p.property_name == "ID"),
-                        path,
-                        telegram_id: m_id.value,
-                        telegram_parent: if let Some(pm_id) =
-                            (properties.find(|p: &NodeProperty| {
-                                p.property_name == CAPTUREBOT_PARENT_ID_PROPERTY
-                            })) {
-                            pm_id.value
-                        },
-                        document: doc,
-                    });
-                }
-            }
-        }
-    };
+fn get_property_value<'a>(
+    p_name: String,
+    properties: &impl Iterator<Item = NodeProperty<'a>>,
+) -> Option<String> {
+    todo!();
+    // let result = properties
+    //     .filter(|p: &NodeProperty| p.property_name == p_name)
+    //     .map(|p| p.value.expect("If property exists, it should have a value").to_string())
+    //     .next()
+    //     .clone();
+    // return result;
 }
 
-fn add_note(msg: Message, notes: &mut Vec<CapturebotNote>) -> io::Result<'_> {
-    let entities = msg.parse_entities().unwrap_or_default().iter();
-    let text = msg.text.unwrap();
-    let title = text
-        .split_whitespace()
-        .next()
-        .unwrap_or_else(format!("capturebot note at %s", Utc::now()));
-    let links: &str = entities
-        .filter_map(|m| match m.kind() {
-            MessageEntityKind::TextLink => Some(m.text),
-            MessageEntityKind::Url => Some(m.text),
-            true => None,
+fn get_note_by_capturebot_id(
+    cap_id: String,
+    notes: &Vec<CapturebotNote>,
+) -> Option<CapturebotNote> {
+    todo!();
+        // return notes
+        // .filter(|n: &CapturebotNote| n.capturebot_id == cap_id)
+        // .map(|n| n.value.expect("If note exists, it should have a cap_id").to_string())
+        // .next()
+        // .clone();
+        // return None;
+    
+}
+
+async fn load_notes(notes: &mut Vec<CapturebotNote>) -> Result<(), Error> {
+    todo!();
+    // let direntries = fs::read_dir(Path::new(SAVEDIR)).await.unwrap();
+    // while let Some(direntry) = direntries.next_entry().await.unwrap() {
+    //     if direntry.metadata().await.unwrap().is_file()
+    //         && direntry
+    //             .file_name()
+    //             .to_str()
+    //             .is_some_and(|f| f.ends_with(".org"))
+    //     {
+    //         let f = fs::File::open(direntry.path().as_path()).await?;
+    //         let mut s;
+    //         f.read_to_string(&mut s);
+    //         let doc: Document<'a> = parse_file(s.as_str(), None).map_err(|e| e.downcast());
+    //         let properties = doc.get_additional_properties();
+
+    //         if let Some(cap_id) = get_property_value(CAPTUREBOT_ID_PROPERTY.to_string(), &properties) {
+    //             if get_note_by_capturebot_id(cap_id, notes).is_none() {
+    //                 notes.push(CapturebotNote {
+    //                     id: get_property_value("ID".to_string(), &properties).unwrap(),
+    //                     path: direntry.path().to_str().unwrap().to_string(),
+    //                     capturebot_id: cap_id,
+    //                     capturebot_parent: get_property_value(
+    //                         CAPTUREBOT_PARENT_ID_PROPERTY.to_string(),
+    //                         &properties,
+    //                     ),
+    //                 });
+    //             }
+    //         }
+    //     }
+    // };
+    //     Ok(())
+    
+}
+
+async fn add_note(msg: Message, notes: &mut Vec<CapturebotNote>) -> Result<(), Error> {
+    let text = msg.text().unwrap().to_string();
+    let title = text.lines().next().map_or(format!("capturebot note made at {}", Utc::now()), str::to_string);
+    let links: String = msg.parse_entities().unwrap_or_default().iter().filter_map(|m| match m.kind() {
+            MessageEntityKind::TextLink{url} => Some(url.as_str()),
+            MessageEntityKind::Url => Some(m.text()),
+            _ => None,
         })
-        .join(", ");
+        .intersperse(", ")
+        .collect();
     let timestamp = msg.date.format("[%Y-%m-%d %a %H:%M]");
     let org_id = gen_uuid(true);
-    let (parent_cap_id, parent_org_id_link_string, cap_parent_id_property_string) =
-        if let Some(rt) = msg.reply_to_message {
-            (
-                rt.id,
-                if let Some(n) = notes
-                    .iter()
-                    .find(|n| n.telegram_id == rt.id)
-                    {format!("\nReply to: [[id:{n.id}]]\n")},
-                format!("\n{capturebot_parent_id_property}: {rt.id}"),
-            )
-        };
-    let target_path = format!("{SAVEDIR}/{d}-{t}.org", d = msg.date.format("%Y%m%d%H%M%S"), t = slugify!(title, max_length=5));
+    let cap_id = msg.id.to_string();
+    let (parent_org_id_link_string, cap_parent_id_property_string) = msg.reply_to_message()
+        .map_or((String::new(), String::new()),
+            |rt| {
+                ( get_note_by_capturebot_id(rt.id.to_string(), notes)
+                    .map_or(String::default(),|n| format!("\nReply to: [[id:{}]]\n", n.id) ),
+                    format!("\n{CAPTUREBOT_PARENT_ID_PROPERTY}: {}", rt.id),
+                )
+            });
+    let target_path = format!(
+        "{SAVEDIR}/{d}-{t}.org",
+        d = msg.date.format("%Y%m%d%H%M%S"),
+        t = slugify!(title.as_str(), max_length = 5)
+    );
     let note_body = format!(
-        "
-:PROPERTIES:
+        ":PROPERTIES:
 ID: {org_id}
 CREATED: {timestamp}
-{capturebot_id_property}:{msg.id}{cap_parent_id_property_string}
+{CAPTUREBOT_ID_PROPERTY}:{cap_id}{cap_parent_id_property_string}
 ROAM_REFS: {links}
 :END:
 #+title: {title}
 {text}
 {parent_org_id_link_string}
 ");
-    return fs::write(target_path, note_body).and_then({
-        notes.push(
-            CapturebotNote {
-                id: org_id,
-                path: target_path,
-                telegram_id: msg.id,
-                telegram_parent: msg.reply_to_message,
-                document: parse(&note_body)
-            });
-        return notes;
-    })
+    let new_note = CapturebotNote {
+        id: org_id,
+        path: target_path.clone(),
+        capturebot_id: msg.id.to_string(),
+        capturebot_parent: msg.reply_to_message().map(|rt| rt.id.to_string()),
+    };
+    return fs::write(Path::new(target_path.as_str()), note_body.clone()).await.and_then(|_| {
+        notes.push(new_note);
+        Ok(())
+    });
 }
 
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
-    log::info("Starting throw dice bot...");
+    log::info!("Starting capturebot...");
 
+    let mut notes = Vec::new();
+    load_notes(&mut notes);
     let bot = Bot::from_env();
 
-    teloxide::repl(bot, |bot: Bot, msg::Message| async move {
+    teloxide::repl(bot, |bot: Bot, msg: Message| async move {
         bot.send_dice(msg.chat.id).await?;
+        // add_note(msg, &mut notes).await;
         Ok(())
     })
     .await;

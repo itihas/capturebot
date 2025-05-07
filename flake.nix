@@ -12,7 +12,7 @@
       systems = [ "x86_64-linux" ];
       perSystem = { config, self', pkgs, lib, system, ... }:
         let
-          # runtimeDeps = with pkgs; [ alsa-lib speechd ];
+          runtimeDeps = with pkgs; [ openssl ];
           buildDeps = with pkgs; [ pkg-config rustPlatform.bindgenHook ];
           devDeps = with pkgs; [ gdb ];
 
@@ -21,18 +21,19 @@
 
           rustPackage = features:
             (pkgs.makeRustPlatform {
-              cargo = pkgs.rust-bin.stable.latest.minimal;
-              rustc = pkgs.rust-bin.stable.latest.minimal;
+              cargo = pkgs.rust-bin.nightly.latest.minimal;
+              rustc = pkgs.rust-bin.nightly.latest.minimal;
             }).buildRustPackage {
               inherit (cargoToml.package) name version;
               src = ./.;
               cargoLock.lockFile = ./Cargo.lock;
               buildFeatures = features;
-              # buildInputs = runtimeDeps;
+              buildInputs = runtimeDeps;
               nativeBuildInputs = buildDeps;
               # Uncomment if your cargo tests require networking or otherwise
               # don't play nicely with the Nix build sandbox:
               # doCheck = false;
+              # PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
             };
 
           mkDevShell = rustc:
@@ -40,7 +41,7 @@
               shellHook = ''
                 export RUST_SRC_PATH=${pkgs.rustPlatform.rustLibSrc}
               '';
-              # buildInputs = runtimeDeps;
+              buildInputs = runtimeDeps;
               nativeBuildInputs = buildDeps ++ devDeps ++ [ rustc ];
             };
         in {
@@ -52,7 +53,7 @@
           packages.default = self'.packages.capturebot-new;
           devShells.default = self'.devShells.nightly;
 
-          packages.capturebot-new = (rustPackage "capturebot-new");
+          packages.capturebot-new = (rustPackage "");
 
           devShells.nightly = (mkDevShell (pkgs.rust-bin.selectLatestNightlyWith
             (toolchain: toolchain.default)));
