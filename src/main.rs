@@ -1,4 +1,4 @@
-use capturebot_new::{add_note, load_notes};
+use capturebot::{add_note, load_notes, is_valid_msg};
 use std::collections::HashMap;
 use std::sync::Arc;
 use teloxide::types::Message;
@@ -25,10 +25,12 @@ async fn main() {
         let notes_clone = notes.clone();
         async move {
             // bot.send_dice(msg.chat.id).await?;
-            let mut notes_guard = notes_clone.lock().await;
-            add_note(msg, &mut notes_guard)
-                .await
-                .map_err(|e| RequestError::Io(e.into()))?;
+	    if is_valid_msg(msg) {
+		let mut notes_guard = notes_clone.lock().await;
+		add_note(msg, &mut notes_guard)
+                    .await
+                    .map_err(|e| RequestError::Io(e.into()))?;
+	    }
             Ok(())
         }
     })

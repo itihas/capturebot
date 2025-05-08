@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fs::File, io::Read};
+use std::{collections::HashMap, convert::identity, fs::File, io::Read};
 
-use capturebot_new::{add_note, load_notes};
+use capturebot::{add_note, is_valid_msg, load_notes};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
@@ -76,7 +76,7 @@ pub struct BackupMessage {
 impl From<BackupMessage> for Message {
     fn from(backup: BackupMessage) -> Self {
         Message {
-            id: MessageId{0: backup.id},
+            id: MessageId { 0: backup.id },
             thread_id: None,
             from: Some(User {
                 id: backup.from_id,
@@ -95,8 +95,8 @@ impl From<BackupMessage> for Message {
                 kind: teloxide::types::ChatKind::Private(teloxide::types::ChatPrivate {
                     username: Some("capturebot".to_string()),
                     first_name: None,
-                    last_name: None
-                })
+                    last_name: None,
+                }),
             },
             is_topic_message: false,
             via_bot: None,
@@ -123,13 +123,12 @@ async fn main() {
     let mut notes = HashMap::new();
     load_notes(&mut notes).await.expect("load_notes failed");
     for backup_message in json.messages {
-        let message : Message = backup_message.clone().into();
-        println!("{:?}", message);
-        if message.text().is_some() {
-        add_note(message.clone().into(), &mut notes)
-            .await
-            .map_err(|e| println!("parsing message {} failed: {}", message.id.to_string(), e))
-            .expect("processing message failed");
+        let msg: Message = backup_message.clone().into();
+        if is_valid_msg(msg.clone()) {
+            add_note(msg.clone(), &mut notes)
+                .await
+                .map_err(|e| println!("parsing message {} failed: {}", msg.id.to_string(), e))
+                .expect("");
         }
     }
 }
