@@ -22,6 +22,7 @@ pub struct CapturebotNote {
     path: PathBuf,
     capturebot_id: String,
     _capturebot_parent: Option<String>,
+    title: String,
     body: String,
 }
 
@@ -41,42 +42,48 @@ impl TryFrom<Document<'_>> for CapturebotNote {
             _capturebot_parent: properties_map
                 .get(CAPTUREBOT_PARENT_ID_PROPERTY)
                 .cloned(),
+	    title: properties_map.get("title").unwrap().to_string(),
             body: doc.source.to_string()
         };
         Ok(note)
     }
 }
 
-impl From<Message> for CapturebotNote {
-    fn from(msg: Message) -> Self {
-        let text = msg.text().unwrap().to_string();
-        let title = text.lines().next().map_or(
-            format!("capturebot note made at {}", Utc::now()),
-            str::to_string,
-        );
-        let links: String = msg
-            .parse_entities()
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|m| match m.kind() {
-                MessageEntityKind::TextLink { url } => Some(url.as_str()),
-                MessageEntityKind::Url => Some(m.text()),
-                _ => None,
-            })
-            .intersperse(", ")
-            .collect();
-        let timestamp = msg.date.format("[%Y-%m-%d %a %H:%M]");
-        let org_id = gen_uuid(true);
-        let cap_id = msg.id.to_string();
-        let cap_parent_id_property_string = msg.reply_to_message()
-            .map_or(String::new(), |rt| format!("\n{CAPTUREBOT_PARENT_ID_PROPERTY}: {}", rt.id));
-        let target_path = format!(
-            "{SAVEDIR}/{d}-{t}.org",
-            d = msg.date.format("%Y%m%d%H%M%S"),
-            t = slugify!(title.as_str(), max_length = 30)
-        );
-        let note_body = format!(
-            ":PROPERTIES:
+fn note_from_message(msg: Message, notes: &HashMap<String, CapturebotNote>) -> CapturebotNote {
+    let text = msg.text().unwrap().to_string();
+    let title = text.lines().next().map_or(
+        format!("capturebot note made at {}", Utc::now()),
+        str::to_string,
+    );
+    let links: String = msg
+        .parse_entities()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|m| match m.kind() {
+            MessageEntityKind::TextLink { url } => Some(url.as_str()),
+            MessageEntityKind::Url => Some(m.text()),
+            _ => None,
+        })
+        .intersperse(", ")
+        .collect();
+    let timestamp = msg.date.format("[%Y-%m-%d %a %H:%M]");
+    let org_id = gen_uuid(true);
+    let cap_id = msg.id.to_string();
+    let reply = msg.reply_to_message();
+    let cap_parent_id_property_string = reply
+        .map_or(String::new(), |rt| 
+		format!("\n{CAPTUREBOT_PARENT_ID_PROPERTY}: {}", rt.id.to_string()));
+    let org_parent_link_string = reply
+	.map_or( String::new(), |rt| notes.get(&rt.id.to_string())
+		 .map_or( String::new(), |pn|
+			  format!("* Related: [[id:{}][{}]]\n", pn.id.to_string(), pn.title)));
+    let target_path = format!(
+        "{SAVEDIR}/{d}-{t}.org",
+        d = msg.date.format("%Y%m%d%H%M%S"),
+        t = slugify!(&title, max_length = 30)
+    );
+    let note_body = format!(
+        ":PROPERTIES:
 :ID: {org_id}
 :CREATED: {timestamp}
 :{CAPTUREBOT_ID_PROPERTY}: {cap_id}{cap_parent_id_property_string}
@@ -84,17 +91,19 @@ impl From<Message> for CapturebotNote {
 :END:
 #+title: {title}
 {text}
+{org_parent_link_string}
 "
-        );
-        CapturebotNote {
-            id: org_id,
-            path: PathBuf::from(target_path),
-            capturebot_id: msg.id.to_string(),
-            _capturebot_parent: msg.reply_to_message().map(|rt| rt.id.to_string()),
-            body: note_body,
-        }
+    );
+    CapturebotNote {
+        id: org_id,
+        path: PathBuf::from(target_path),
+        capturebot_id: msg.id.to_string(),
+        _capturebot_parent: msg.reply_to_message().map(|rt| rt.id.to_string()),
+	title,
+        body: note_body
     }
 }
+
 
 
 pub async fn load_notes(notes: &mut HashMap<String, CapturebotNote>) -> Result<(), Error> {
@@ -133,7 +142,7 @@ pub async fn add_note(
     msg: Message,
     notes: &mut HashMap<String, CapturebotNote>,
 ) -> Result<(), Error> {
-    let new_note = CapturebotNote::from(msg);
+    let new_note = note_from_message(msg, notes);
     fs::write(Path::new(&new_note.path), new_note.body.clone())
         .await
         .and_then(|_| {
