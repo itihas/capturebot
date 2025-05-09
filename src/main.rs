@@ -25,7 +25,7 @@ async fn main() {
         let notes_clone = notes.clone();
         async move {
             // bot.send_dice(msg.chat.id).await?;
-	    if is_valid_msg(msg) {
+	    if is_valid_msg(msg.clone()) {
 		let mut notes_guard = notes_clone.lock().await;
 		add_note(msg, &mut notes_guard)
                     .await

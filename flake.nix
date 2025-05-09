@@ -50,10 +50,10 @@
             overlays = [ (import inputs.rust-overlay) ];
           };
 
-          packages.default = self'.packages.capturebot-new;
+          packages.default = self'.packages.capturebot;
           devShells.default = self'.devShells.nightly;
 
-          packages.capturebot-new = (rustPackage "");
+          packages.capturebot = (rustPackage "");
 
           devShells.nightly = (mkDevShell (pkgs.rust-bin.selectLatestNightlyWith
             (toolchain: toolchain.default)));

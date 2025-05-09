@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::identity, fs::File, io::Read};
+use std::{collections::HashMap, fs::File, io::Read};
 
 use capturebot::{add_note, is_valid_msg, load_notes};
 use chrono::{DateTime, Utc};
