@@ -60,5 +60,27 @@
           devShells.stable = (mkDevShell pkgs.rust-bin.stable.latest.default);
           devShells.msrv = (mkDevShell pkgs.rust-bin.stable.${msrv}.default);
         };
-    };
+      flake = {
+        nixosModule = {config, lib, pkgs, ...}: {
+          options.services.capturebot = {
+            enable = lib.mkEnableOption { description =  "enable the capturebot daemon"; };
+            botId = lib.mkOption {
+              type = lib.types.str;
+              default = null;
+              description = "Telegram Bot ID capturebot is a listener for.";
+            };
+            userId = lib.mkOption {
+              type = lib.types.int;
+              default = null;
+              description = "User ID that is going to be talking to capturebot.";
+            };
+            saveDir = lib.mkOption {
+              type = lib.types.path;
+              default = null;
+              description = "Path capturebot saves notes to";
+            };
+          };
+        };
+      };
+      };
 }
