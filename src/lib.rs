@@ -1,10 +1,13 @@
 #![feature(iter_intersperse)]
+mod tests;
+mod config;
+
 use chrono::Utc;
+pub use crate::config::CapturebotConfig;
 use organic::parser::parse_file;
 use organic::types::Document;
 use slugify::slugify;
 use std::collections::{self, HashMap};
-use std::env;
 use std::io::Error;
 use std::path::{Path, PathBuf};
 use teloxide::types::{Message, MessageEntityKind};
@@ -12,7 +15,6 @@ use tokio::fs;
 use tokio::io::AsyncReadExt;
 use uuidgen::gen_uuid;
 
-static SAVEDIR: &str = "./out/";
 
 static CAPTUREBOT_ID_PROPERTY: &str = "CAPTUREBOT_MESSAGE_ID";
 static CAPTUREBOT_PARENT_ID_PROPERTY: &str = "CAPTUREBOT_PARENT_MESSAGE_ID";
@@ -29,27 +31,38 @@ pub struct CapturebotNote {
 impl TryFrom<Document<'_>> for CapturebotNote {
     type Error = Error;
     fn try_from<'a>(doc: Document) -> Result<Self, Error> {
+        let default_title = "untitled capturebot note".to_string();
+        let title = doc.zeroth_section
+            .iter()
+            .flat_map(|zeroth_section| zeroth_section.children.iter())
+            .find_map(|e| match e {
+                organic::types::Element::Keyword(k) if k.key == "title" => Some(k.value),
+                _ => None
+            })
+            .unwrap_or(&default_title)
+            .to_string();
+
         let properties_iterator = doc
             .get_additional_properties()
             .filter_map(|p| p.value.map(|v| (p.property_name, v.to_string())));
         let properties_map: HashMap<&str, String> =
             collections::HashMap::from_iter(properties_iterator);
-        let cap_id = properties_map.get(CAPTUREBOT_ID_PROPERTY).unwrap();
+        let cap_id = properties_map.get(CAPTUREBOT_ID_PROPERTY).expect(format!("no cap_id property. note:\n{}", doc.contents).as_str());
         let note: CapturebotNote = CapturebotNote {
-            id: properties_map.get("ID").unwrap().to_string(),
-            path : doc.path.unwrap().to_path_buf(),
+            id: properties_map.get("ID").expect("this note has no id").to_string(),
+            path : doc.path.expect("note should have a path").to_path_buf(),
             capturebot_id: cap_id.to_string(),
             _capturebot_parent: properties_map
                 .get(CAPTUREBOT_PARENT_ID_PROPERTY)
                 .cloned(),
-	    title: properties_map.get("title").unwrap().to_string(),
+	    title,
             body: doc.source.to_string()
         };
         Ok(note)
     }
 }
 
-fn note_from_message(msg: Message, notes: &HashMap<String, CapturebotNote>) -> CapturebotNote {
+fn note_from_message(msg: Message, notes: &HashMap<String, CapturebotNote>, config: &CapturebotConfig) -> CapturebotNote {
     let text = msg.text().unwrap().to_string();
     let title = text.lines().next().map_or(
         format!("capturebot note made at {}", Utc::now()),
@@ -72,14 +85,15 @@ fn note_from_message(msg: Message, notes: &HashMap<String, CapturebotNote>) -> C
     let reply = msg.reply_to_message();
     let cap_parent_id_property_string = reply
         .map_or(String::new(), |rt| 
-		format!("\n{CAPTUREBOT_PARENT_ID_PROPERTY}: {}", rt.id.to_string()));
+		format!("\n:{CAPTUREBOT_PARENT_ID_PROPERTY}: {}", rt.id.to_string()));
     let org_parent_link_string = reply
 	.map_or( String::new(), |rt| notes.get(&rt.id.to_string())
 		 .map_or( String::new(), |pn|
 			  format!("* Related: [[id:{}][{}]]\n", pn.id.to_string(), pn.title)));
     let target_path = format!(
-        "{SAVEDIR}/{d}-{t}.org",
-        d = msg.date.format("%Y%m%d%H%M%S"),
+        "{s}/{d}-{t}.org",
+	s = config.save_dir.display(),
+	d = msg.date.format("%Y%m%d%H%M%S"),
         t = slugify!(&title, max_length = 30)
     );
     let note_body = format!(
@@ -106,18 +120,19 @@ fn note_from_message(msg: Message, notes: &HashMap<String, CapturebotNote>) -> C
 
 
 
-pub async fn load_notes(notes: &mut HashMap<String, CapturebotNote>) -> Result<(), Error> {
-    let mut direntries = fs::read_dir(Path::new(SAVEDIR)).await.unwrap();
-    while let Some(direntry) = direntries.next_entry().await.unwrap() {
-        if direntry.metadata().await.unwrap().is_file()
+pub async fn load_notes(notes: &mut HashMap<String, CapturebotNote>, config: &CapturebotConfig) -> Result<(), Error> {
+    let mut direntries = fs::read_dir(config.save_dir.as_path()).await.expect("read_dir failed");
+    while let Some(direntry) = direntries.next_entry().await.expect("next_entry failed") {
+        if direntry.file_type().await.expect("file should be openable").is_file()
             && direntry
                 .file_name()
                 .to_str()
                 .is_some_and(|f| f.ends_with(".org"))
         {
-            let mut f = fs::File::open(direntry.path().as_path()).await?;
+            let mut f = fs::File::open(direntry.path().as_path()).await.expect("file not openable");
             let mut s = String::new();
-            f.read_to_string(&mut s).await?;
+            println!("{}", direntry.path().to_string_lossy());
+            f.read_to_string(&mut s).await.expect("reading file failed");
             let doc: Document<'_> = parse_file(&s, Some(direntry.path()))
                 .map_err(|e| e.downcast::<Error>())
                 .expect("document should be parseable");
@@ -129,20 +144,17 @@ pub async fn load_notes(notes: &mut HashMap<String, CapturebotNote>) -> Result<(
     Ok(())
 }
 
-pub fn is_valid_msg(msg: Message) -> bool {
-    let user_id = env::var("CAPTUREBOT_USER_ID")
-        .expect("Specify the user ID capturebot should listen for as CAPTUREBOT_USER_ID environment variable")
-        .parse::<u64>()
-        .expect("User ID should be an integer");
-    msg.text().is_some() && msg.clone().from.is_some_and(|u| u.id.0 == user_id)
+pub fn is_valid_msg(msg: Message, config: &CapturebotConfig) -> bool {
+    msg.text().is_some() && msg.clone().from.is_some_and(|u| u.id.0 == config.user_id)
 }
 
 
 pub async fn add_note(
     msg: Message,
     notes: &mut HashMap<String, CapturebotNote>,
+    config: &CapturebotConfig
 ) -> Result<(), Error> {
-    let new_note = note_from_message(msg, notes);
+    let new_note = note_from_message(msg, notes, config);
     fs::write(Path::new(&new_note.path), new_note.body.clone())
         .await
         .and_then(|_| {

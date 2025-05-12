@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fs::File, io::Read};
+use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
 
-use capturebot::{add_note, is_valid_msg, load_notes};
+use capturebot::{add_note, is_valid_msg, load_notes, CapturebotConfig};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
@@ -115,17 +115,22 @@ struct TelegramBackup {
 
 #[tokio::main]
 async fn main() {
-    let backup_location = std::env::args().nth(1).expect("no backup location given");
+    let config = CapturebotConfig::from_env();
+    let backup_location = config.backup_json.clone().unwrap_or(PathBuf::from(
+        std::env::args().nth(1).expect("no backup location given"),
+    ));				// put this in config.rs later
     let mut file = File::open(backup_location).unwrap();
     let mut data = String::new();
     file.read_to_string(&mut data).unwrap();
     let json: TelegramBackup = from_str(&data).expect("backup file should be parseable as json");
     let mut notes = HashMap::new();
-    load_notes(&mut notes).await.expect("load_notes failed");
+    load_notes(&mut notes, &config)
+        .await
+        .expect("load_notes failed");
     for backup_message in json.messages {
         let msg: Message = backup_message.clone().into();
-        if is_valid_msg(msg.clone()) {
-            add_note(msg.clone(), &mut notes)
+        if is_valid_msg(msg.clone(), &config) {
+            add_note(msg.clone(), &mut notes, &config)
                 .await
                 .map_err(|e| println!("parsing message {} failed: {}", msg.id.to_string(), e))
                 .expect("");
