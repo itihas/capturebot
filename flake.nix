@@ -13,7 +13,6 @@
         inherit (flake-parts-lib) importApply;
       in
       {
-    imports = [  inputs.flake-parts.flakeModules.flakeModules ];
     systems = [ "x86_64-linux" ];
     perSystem = { config, self', pkgs, lib, system, ... }:
     let
