@@ -10,10 +10,10 @@ in
       default = withSystem ({ config, ... }: config.packages.default);
       defaultText = lib.literalMD "`packages.default` from the foo flake";
     };
-    botId = mkOption {
+    botToken = mkOption {
       type = types.str;
       default = null;
-      description = "Telegram Bot ID capturebot is a listener for.";
+      description = "Telegram Bot token for capturebot.";
     };
     userId = mkOption {
       type = types.int;
@@ -40,6 +40,7 @@ in
       environment = {
         "CAPTUREBOT_USER_ID" = cfg.userId;
         "CAPTUREBOT_SAVE_DIR" = cfg.SaveDir;
+        "TELOXIDE_TOKEN" = cfg.botToken;
       };
     };
   };
