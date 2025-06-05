@@ -116,9 +116,9 @@ struct TelegramBackup {
 #[tokio::main]
 async fn main() {
     let config = CapturebotConfig::from_env();
-    let backup_location = config.backup_json.clone().unwrap_or(PathBuf::from(
-        std::env::args().nth(1).expect("no backup location given"),
-    ));				// put this in config.rs later
+    let backup_location = config.backup_json.clone().unwrap_or_else(|| {
+        PathBuf::from(std::env::args().nth(1).expect("no backup location given"))
+    }); // put this in config.rs later
     let mut file = File::open(backup_location).unwrap();
     let mut data = String::new();
     file.read_to_string(&mut data).unwrap();

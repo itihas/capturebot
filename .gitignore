@@ -3,3 +3,5 @@
 /.direnv/
 /result
 /test_out/
+/scripts/*.org
+/scripts/testdata/

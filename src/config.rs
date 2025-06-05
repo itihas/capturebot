@@ -9,7 +9,7 @@ pub struct CapturebotConfig {
 
 impl CapturebotConfig {
     pub fn from_env() -> Self {
-        Self {
+	let r = Self {
             user_id: env::var("CAPTUREBOT_USER_ID")
                 .expect("Specify user ID")
                 .parse::<u64>()
@@ -20,7 +20,9 @@ impl CapturebotConfig {
             backup_json: env::var("CAPTUREBOT_BACKUP_LOCATION")
                 .ok()
                 .map(PathBuf::from),
-        }
+        };
+	println!("{:?} {:?} {:?}", r.user_id, r.save_dir, r.backup_json);
+	r
     }
 
     #[cfg(test)]
